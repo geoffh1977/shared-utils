@@ -1,0 +1,8 @@
+---
+namespace: metallb-system
+
+resources:
+  - namespace.yaml
+
+bases:
+  - ./metallb/

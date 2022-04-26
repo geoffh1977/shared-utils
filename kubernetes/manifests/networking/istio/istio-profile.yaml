@@ -1,0 +1,13 @@
+---
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: default-controlplane
+  namespace: istio-system
+spec:
+  profile: default
+  # components:
+  #   egressGateways:
+  #   - name: istio-egressgateway
+  #     enabled: true
+

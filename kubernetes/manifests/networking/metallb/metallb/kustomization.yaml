@@ -1,0 +1,19 @@
+---
+# MetalLB Kustomization File
+namespace: metallb-system
+
+resources:
+  - metallb.yaml
+
+configMapGenerator:
+- name: config
+  files:
+    - config=config/config.yaml
+
+secretGenerator:
+- name: memberlist
+  files:
+    - secretkey=config/secretkey.txt
+
+generatorOptions:
+ disableNameSuffixHash: true

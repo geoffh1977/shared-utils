@@ -1,0 +1,86 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  strategy: free
+  vars:
+    helm_version: '3.8.2'
+
+  tasks:
+
+    ### Install Helm
+    - name: Download and Install Helm
+      unarchive:
+        src: https://get.helm.sh/helm-v{{helm_version}}-linux-amd64.tar.gz
+        dest: /usr/bin
+        remote_src: yes
+        extra_opts:
+          - '--strip-components=1'
+          - 'linux-amd64/helm'
+        owner: root
+        group: root
+        mode: '0755'
+        creates: /usr/bin/helm
+
+    ### Deploy Calico
+    - name: Add Project Calico Repository To Repos
+      kubernetes.core.helm_repository:
+        name: projectcalico
+        repo_url: https://projectcalico.docs.tigera.io/charts
+    
+    - name: Deploy Calico CNI To Cluster
+      kubernetes.core.helm:
+        name: calico
+        release_namespace: default
+        chart_ref: projectcalico/tigera-operator
+        wait: True
+        values:
+          installation:
+            # Configures Calico networking.
+            calicoNetwork:
+              # Note: The ipPools section cannot be modified post-install.
+              ipPools:
+                - blockSize: 26
+                  cidr: 10.244.0.0/16
+                  encapsulation: VXLANCrossSubnet
+                  natOutgoing: Enabled
+                  nodeSelector: all()
+
+    ### Deploy Istio
+    - name: Add Istio Repository To Repos
+      kubernetes.core.helm_repository:
+        name: istio
+        repo_url: https://istio-release.storage.googleapis.com/charts
+
+    - name: Deploy Istio Base
+      kubernetes.core.helm:
+        name: istio-base
+        release_namespace: istio-system
+        chart_ref: istio/base
+        wait: True
+        create_namespace: true
+
+    - name: Deploy Istio Discovery
+      kubernetes.core.helm:
+        name: istiod
+        release_namespace: istio-system
+        chart_ref: istio/istiod
+        wait: True
+        create_namespace: true
+
+    - name: Create Istio Ingress Namespace
+      kubernetes.core.k8s:
+        name: istio-ingress
+        kind: Namespace
+        state: present
+        definition:
+          metadata:
+            labels:
+              istio-injection: enabled
+    
+    - name: Deploy Istio Ingress Gateway
+      kubernetes.core.helm:
+        name: istio-ingress
+        release_namespace: istio-ingress
+        chart_ref: istio/gateway
+        wait: True  

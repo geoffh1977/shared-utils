@@ -1,0 +1,63 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  strategy: free
+  vars:
+    helm_version: '3.8.2'
+
+  tasks:
+
+    ### Install Helm
+    - name: Download and Install Helm
+      unarchive:
+        src: https://get.helm.sh/helm-v{{helm_version}}-linux-amd64.tar.gz
+        dest: /usr/bin
+        remote_src: yes
+        extra_opts:
+          - '--strip-components=1'
+          - 'linux-amd64/helm'
+        owner: root
+        group: root
+        mode: '0755'
+        creates: /usr/bin/helm
+
+    ### Kubernetes Untaint Master
+    - name: Remove Master Taint
+      kubernetes.core.k8s_taint:
+        state: absent
+        name: "{{ ansible_facts.hostname}}"
+        taints:
+          - effect: NoSchedule
+            key: "node-role.kubernetes.io/master"
+
+    ### Deploy MetalLB
+    - name: Add MetalLB Repository To Repos
+      kubernetes.core.helm_repository:
+        name: metallb
+        repo_url: https://metallb.github.io/metallb
+
+    - name: Create MetalLB System Namespace
+      kubernetes.core.k8s:
+        name: metallb-system
+        kind: Namespace
+        state: present
+        definition:
+          metadata:
+            labels:
+              istio-injection: disabled
+
+    - name: Deploy Metal LB To Cluster
+      kubernetes.core.helm:
+        name: metallb
+        release_namespace: metallb-system
+        chart_ref: metallb/metallb
+        wait: True
+        values:
+          configInline:
+            address-pools:
+              - name: default
+                protocol: layer2
+                avoid-buggy-ips: true
+                addresses:
+                  - 192.168.122.224/28
